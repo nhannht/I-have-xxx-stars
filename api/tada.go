@@ -3,10 +3,13 @@ package api
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
+	"fmt"
 	"github.com/fogleman/gg"
 	"golang.org/x/image/font/opentype"
 	"image"
 	"net/http"
+	"os"
 )
 
 //go:embed larvar-shit-without-background.png
@@ -56,9 +59,47 @@ func TadaHandler(w http.ResponseWriter, r *http.Request) {
 	textX := float64(dc.Width()) / 2
 	textY := float64(y + imgHeight + 50) // Adjust the 50 to add some padding below the image
 
+	// get the GITHUB_TOKEN
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		http.Error(w, "GitHub token is not set", http.StatusUnauthorized)
+		return
+	}
+
+	// Fetch the stargazer count from the GitHub API
+	repo := "nhannht/i-have-xxx-stars"
+	url := fmt.Sprintf("https://api.github.com/repos/%s", repo)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		http.Error(w, "Failed to create request to GitHub API", http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Authorization", "token "+token)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Failed to send request to GitHub API", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Failed to fetch repository details from GitHub API", http.StatusInternalServerError)
+		return
+	}
+
+	var repoDetails struct {
+		StargazersCount int `json:"stargazers_count"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&repoDetails); err != nil {
+		http.Error(w, "Failed to parse response from GitHub API", http.StatusInternalServerError)
+		return
+	}
+
 	// Draw the string "hello" under the image
 	dc.SetRGB(255, 255, 255)
-	dc.DrawStringAnchored("hello", textX, textY, 0.5, 0.5)
+	dc.DrawStringAnchored(fmt.Sprintf("Stargazers: %d", repoDetails.StargazersCount), textX, textY, 0.5, 0.5)
 
 	// Set the content type to image/png
 	w.Header().Set("Content-Type", "image/png")
