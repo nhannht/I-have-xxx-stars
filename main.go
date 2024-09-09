@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/nhannht/nhannht-have-xxx-stars/app/api"
+	"github.com/nhannht/nhannht-have-xxx-stars/api"
 	"net/http"
 )
 
