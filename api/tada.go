@@ -8,8 +8,16 @@ import (
 	"github.com/fogleman/gg"
 	"golang.org/x/image/font/opentype"
 	"image"
+	"image/color"
 	"net/http"
 	"os"
+)
+
+const (
+	W        = 1000
+	H        = 1000
+	textSize = 48
+	textDPI  = 72
 )
 
 //go:embed larvar-shit-without-background.png
@@ -19,7 +27,7 @@ var larvarShitPNG []byte
 var jetBrainsMonoTTF []byte
 
 func TadaHandler(w http.ResponseWriter, r *http.Request) {
-	dc := gg.NewContext(1000, 1000)
+	dc := gg.NewContext(W, H)
 
 	// Load the embedded image
 	img, _, err := image.Decode(bytes.NewReader(larvarShitPNG))
@@ -45,8 +53,8 @@ func TadaHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	face, err := opentype.NewFace(font, &opentype.FaceOptions{
-		Size: 48,
-		DPI:  72,
+		Size: textSize,
+		DPI:  textDPI,
 	})
 	if err != nil {
 		http.Error(w, "Unable to create font face.", http.StatusInternalServerError)
@@ -97,9 +105,27 @@ func TadaHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Draw the string "hello" under the image
+	// Draw the string  under the image
 	dc.SetRGB(255, 255, 255)
 	dc.DrawStringAnchored(fmt.Sprintf("Stargazers: %d", repoDetails.StargazersCount), textX, textY, 0.5, 0.5)
+
+	// add gradient to text
+	// get the context as an alpha mask
+	mask := dc.AsMask()
+
+	// set a gradient
+	g := gg.NewLinearGradient(textX/2, textY, 1000, textY+48)
+	g.AddColorStop(0, color.RGBA{R: 255, A: 255})
+	g.AddColorStop(1, color.RGBA{B: 255, A: 255})
+	dc.SetFillStyle(g)
+
+	// using the mask, fill the context with the gradient
+	if err := dc.SetMask(mask); err != nil {
+		http.Error(w, "Unable to set mask.", http.StatusInternalServerError)
+		return
+	}
+	dc.DrawRectangle(textX/2, textY-10, W, textY+textSize) // adjust the rectangle with minus 10 in order to fill all text
+	dc.Fill()
 
 	// Set the content type to image/png
 	w.Header().Set("Content-Type", "image/png")
